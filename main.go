@@ -163,6 +163,27 @@ func (env *E) inputHandle(in []byte) error {
 			case 3:
 				return errors.New("Exit")
 
+			case 127:
+				if env.CurPanel.CursorPos.X == 0 {
+					if env.CurPanel.CursorPos.Y == 0 {
+						break
+					}
+					row := env.CurPanel.Rows[env.CurPanel.CursorPos.Y]
+					tempX := len(env.CurPanel.Rows[env.CurPanel.CursorPos.Y-1])
+					env.CurPanel.Rows[env.CurPanel.CursorPos.Y-1] += row
+					env.CurPanel.Rows = append(env.CurPanel.Rows[:env.CurPanel.CursorPos.Y], env.CurPanel.Rows[env.CurPanel.CursorPos.Y+1:]...)
+
+					env.CurPanel.CursorPos.Y--
+					env.CurPanel.CursorPos.X = tempX
+
+				} else {
+					row := env.CurPanel.Rows[env.CurPanel.CursorPos.Y]
+					row = string(row[:env.CurPanel.CursorPos.X-1]) + string(row[env.CurPanel.CursorPos.X:])
+					env.CurPanel.Rows[env.CurPanel.CursorPos.Y] = row
+					env.CurPanel.CursorPos.X--
+
+				}
+
 			case 13:
 				row := env.CurPanel.Rows[env.CurPanel.CursorPos.Y]
 				newLine := row[env.CurPanel.CursorPos.X:]
