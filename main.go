@@ -9,11 +9,17 @@ import (
 )
 
 const (
-	ioctlGetTermios = unix.TIOCGETA
-	ioctlSetTermios = unix.TIOCSETA
+	ioctlGetTermios    = unix.TIOCGETA
+	ioctlSetTermios    = unix.TIOCSETA
+	ioctlGetWindowSize = unix.TIOCGWINSZ
 )
 
 func main() {
+	winSize, err := getWindowSize(os.Stdin.Fd())
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(winSize)
 	oldTerm, err := enableRawMode(os.Stdin.Fd())
 	if err != nil {
 		panic(err)
@@ -34,11 +40,19 @@ LOOP:
 }
 
 func inputHandle(c byte) error {
-	if c == 4 {
+	if c == 4 || c == 3 {
 		return errors.New("Exit")
 	}
 	fmt.Println(string(c))
 	return nil
+}
+
+func getWindowSize(fd uintptr) (*unix.Winsize, error) {
+	winSize, err := unix.IoctlGetWinsize(int(fd), ioctlGetWindowSize)
+	if err != nil {
+		return nil, err
+	}
+	return winSize, nil
 }
 
 func enableRawMode(fd uintptr) (*unix.Termios, error) {
