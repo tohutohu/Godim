@@ -1,52 +1,65 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
-	"golang.org/x/crypto/ssh/terminal"
 	"golang.org/x/sys/unix"
 )
 
 const (
 	ioctlGetTermios = unix.TIOCGETA
-	ioctlSetTermios = unix.TIOCGETA
+	ioctlSetTermios = unix.TIOCSETA
 )
 
 func main() {
-	terminal.MakeRaw(int(os.Stdin.Fd()))
-	enableRawModw(os.Stdin.Fd())
-	fmt.Println("po")
+	oldTerm, err := enableRawMode(os.Stdin.Fd())
+	if err != nil {
+		panic(err)
+	}
 
 	bufCh := make(chan []byte, 1024)
 	go readBuffer(bufCh)
+LOOP:
 	for {
 		ch := <-bufCh
 		for _, c := range ch {
-			fmt.Println(string(c))
+			if err := inputHandle(c); err != nil {
+				break LOOP
+			}
 		}
 	}
+	unix.IoctlSetTermios(int(os.Stdin.Fd()), ioctlSetTermios, oldTerm)
 }
 
-func enableRawModw(fd uintptr) error {
+func inputHandle(c byte) error {
+	if c == 4 {
+		return errors.New("Exit")
+	}
+	fmt.Println(string(c))
+	return nil
+}
+
+func enableRawMode(fd uintptr) (*unix.Termios, error) {
 	termios, err := unix.IoctlGetTermios(int(fd), ioctlGetTermios)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-	termios.Iflag &^= unix.IGNBRK | unix.BRKINT | unix.PARMRK | unix.INLCR | unix.IGNCR | unix.ICRNL | unix.ISTRIP | unix.IXON
+	oldTerm := *termios
+
+	termios.Iflag &^= unix.IGNBRK | unix.BRKINT | unix.PARMRK | unix.ISTRIP | unix.INLCR | unix.IGNCR | unix.ICRNL | unix.IXON
 	termios.Oflag &^= unix.OPOST
-	termios.Lflag &^= unix.ECHO | unix.ICANON | unix.IEXTEN | unix.ISIG | unix.ECHONL
+	termios.Lflag &^= unix.ECHO | unix.ECHONL | unix.ICANON | unix.ISIG | unix.IEXTEN
 	termios.Cflag &^= unix.CSIZE | unix.PARENB
 	termios.Cflag |= unix.CS8
-
 	termios.Cc[unix.VMIN] = 1
 	termios.Cc[unix.VTIME] = 0
 
-	err = unix.IoctlSetTermios(int(fd), ioctlSetTermios, termios)
-	if err != nil {
-		panic(err)
+	if err := unix.IoctlSetTermios(int(fd), ioctlSetTermios, termios); err != nil {
+		return nil, err
 	}
-	return nil
+	return &oldTerm, nil
 }
 
 func readBuffer(ch chan []byte) {
