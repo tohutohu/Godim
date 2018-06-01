@@ -123,8 +123,7 @@ func (env *E) refleshScreen() {
 	outText := "\x1b[?25l"
 	outText += "\x1b[H"
 	for _, row := range env.CurPanel.Rows {
-		outText += row
-		outText += strings.Repeat(" ", int(env.WinSize.Col)-len(row))
+		outText += env.makeRow(row)
 	}
 
 	rowPadding := 0
@@ -140,6 +139,17 @@ func (env *E) refleshScreen() {
 	outText += fmt.Sprintf("\x1b[%d;%dH", env.CurPanel.CursorPos.Y+1, env.CurPanel.CursorPos.X+1)
 	outText += "\x1b[?25h"
 	fmt.Print(outText)
+}
+
+func (env *E) makeRow(content string) string {
+	res := ""
+	if len(content) > int(env.WinSize.Col) {
+		res += content[:env.WinSize.Col]
+	} else {
+		res += content
+	}
+	res += strings.Repeat(" ", max(int(env.WinSize.Col)-len(content), 0))
+	return res
 }
 
 func (env *E) inputHandle(in []byte) error {
